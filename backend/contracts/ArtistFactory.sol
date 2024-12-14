@@ -16,6 +16,8 @@ contract ArtistFactory is Ownable {
     // Mapping from artist address to their ArtistCollections contract
     mapping(address => address) public artistToCollections;
 
+    event ArtistFactoryDeployed(address indexed artistFactory);
+
     event ArtistCollectionsDeployed(
         address indexed artist,
         address indexed collectionsContract
@@ -30,6 +32,7 @@ contract ArtistFactory is Ownable {
             platformFeePercentage: _platformFeePercentage,
             lastUpdated: block.timestamp
         });
+        emit ArtistFactoryDeployed(address(this));
     }
 
     function updatePlatformInfo(
@@ -49,7 +52,7 @@ contract ArtistFactory is Ownable {
         //deploy the artist collections contract
         ArtistCollections newArtistCollections = new ArtistCollections(
             msg.sender,
-            platformInfo.platformAddress
+            address(this)
         );
         //set the artist collections contract to the artist address in the mapping
         artistToCollections[msg.sender] = address(newArtistCollections);

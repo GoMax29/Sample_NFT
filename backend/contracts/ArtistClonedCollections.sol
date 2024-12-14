@@ -4,9 +4,9 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./ArtistFactory.sol";
-
-contract ArtistCollections is ERC1155, Ownable, ERC2981 {
+import "./ArtistClonedFactory.sol";
+import "hardhat/console.sol";
+contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
     event CollectionCreated(
         address indexed artist,
         uint256 indexed collectionId,
@@ -55,15 +55,39 @@ contract ArtistCollections is ERC1155, Ownable, ERC2981 {
 
     address public factoryAddress;
 
-    // 0.1 Ether
-    uint256 tokenprice = 1 * 10 ** 17; // 0.1 * 10^18
+    bool private initialized;
 
-    constructor(
-        address _artist,
-        address _factoryAddress
-    ) ERC1155("") Ownable(_artist) {
+    constructor()
+        ERC1155("https://your-metadata-uri/{id}.json")
+        ERC2981()
+        Ownable(msg.sender)
+    {}
+
+    // modifier onlyFactory() {
+    //     require(
+    //         msg.sender == factoryAddress,
+    //         "Only factory can call this function"
+    //     );
+    //     _;
+    // }
+
+    function initialize(address _artist, address _factoryAddress) external {
+        console.log("!!! ArtistClonedCollections.initialize !!!");
+        console.log("msg.sender: ", msg.sender);
+        console.log("factoryAddress: ", _factoryAddress);
+        console.log("_artist: ", _artist);
+        require(!initialized, "Already initialized");
+        require(_artist != address(0), "Invalid artist address");
+        require(msg.sender == _factoryAddress, "Caller is not the factory");
+        require(_factoryAddress != address(0), "Invalid factory address");
+        initialized = true;
+
+        _transferOwnership(_artist);
         factoryAddress = _factoryAddress;
     }
+
+    // 0.1 Ether
+    uint256 tokenprice = 1 * 10 ** 17; // 0.1 * 10^18
 
     modifier onlyArtist() {
         require(
@@ -181,13 +205,14 @@ contract ArtistCollections is ERC1155, Ownable, ERC2981 {
     //compléxifier avec achat revente ?
 
     function getPlatformFee() public view returns (uint256) {
-        (, uint256 platformFeePercentage, ) = ArtistFactory(factoryAddress)
-            .platformInfo();
+        (, uint256 platformFeePercentage, ) = ArtistClonedFactory(
+            factoryAddress
+        ).platformInfo();
         return platformFeePercentage;
     }
 
     function getPlatformAddress() public view returns (address) {
-        (address platformAddress, , ) = ArtistFactory(factoryAddress)
+        (address platformAddress, , ) = ArtistClonedFactory(factoryAddress)
             .platformInfo();
         return platformAddress;
     }
