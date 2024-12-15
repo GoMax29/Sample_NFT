@@ -1,17 +1,48 @@
-node_modules
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
 .env
 
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 # Hardhat files
-/cache
-/artifacts
+cache/
+artifacts/
 
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
+# Coverage reports
+coverage/
+coverage.json
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
