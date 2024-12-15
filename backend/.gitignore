@@ -49,3 +49,11 @@ ignition/deployments/chain-31337
 
 # Quel_model_d_IA.txt
 contracts/Quel_model_d_IA.txt
+
+# Lock.sol
+contracts/Lock.sol
+
+# ArtistManagement.sol
+contracts/ArtistManagement.sol
+
+
