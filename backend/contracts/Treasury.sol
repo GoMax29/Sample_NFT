@@ -1,10 +1,11 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Treasury is AccessControl, ReentrancyGuard {
+contract Treasury is AccessControlEnumerable, ReentrancyGuard {
     // Define roles
     bytes32 public constant CEO_ROLE = keccak256("CEO_ROLE");
     bytes32 public constant TREASURER_ROLE = keccak256("TREASURER_ROLE");
@@ -54,33 +55,46 @@ contract Treasury is AccessControl, ReentrancyGuard {
         emit FundsReceived(msg.sender, msg.value);
     }
 
-    // Get current week timestamp (UTC midnight of Monday)
+    // Get current week number
     function _currentWeek() internal view returns (uint256) {
         return block.timestamp / 1 weeks;
     }
 
+    // Get current week's withdrawals
+    function getCurrentWeekWithdrawals() public view returns (uint256) {
+        return weeklyWithdrawals[_currentWeek()];
+    }
+
     // Propose a withdrawal (multi-role approval mechanism)
     function proposeWithdrawal(
-        address payable _to,
+        address _to,
         uint256 _amount,
         string memory _reason
-    ) external {
+    ) external onlyRole(TREASURER_ROLE) {
+        // Check for zero address
+        require(_to != address(0), "Invalid withdrawal address");
+
+        // Check for zero amount
+        require(_amount > 0, "Amount must be greater than zero");
+
+        // Check for pending withdrawals
         require(
-            hasRole(CEO_ROLE, msg.sender) ||
-                hasRole(TREASURER_ROLE, msg.sender),
-            "Unauthorized: requires CEO or Treasurer role"
+            pendingApproval.amount == 0,
+            "Previous withdrawal still pending"
         );
-        require(_amount <= address(this).balance, "Insufficient funds");
+
         require(
             _amount <= maxWithdrawalAmount,
             "Exceeds maximum withdrawal amount"
         );
 
-        uint256 currentWeek = _currentWeek();
+        uint256 currentWeekWithdrawals = getCurrentWeekWithdrawals();
         require(
-            weeklyWithdrawals[currentWeek] + _amount <= weeklyLimit,
+            _amount + currentWeekWithdrawals <= weeklyLimit,
             "Exceeds weekly withdrawal limit"
         );
+
+        require(_amount <= address(this).balance, "Insufficient funds");
 
         pendingApproval = Approval({
             to: _to,
@@ -178,7 +192,13 @@ contract Treasury is AccessControl, ReentrancyGuard {
             "New treasurer cannot be the zero address"
         );
 
-        _revokeRole(TREASURER_ROLE, getRoleMember(TREASURER_ROLE, 0));
+        // Get the current treasurer (first member of TREASURER_ROLE)
+        address currentTreasurer = getRoleMember(TREASURER_ROLE, 0);
+
+        // Revoke role from current treasurer
+        _revokeRole(TREASURER_ROLE, currentTreasurer);
+
+        // Grant role to new treasurer
         _grantRole(TREASURER_ROLE, newTreasurer);
 
         emit TreasurerRoleGranted(newTreasurer);

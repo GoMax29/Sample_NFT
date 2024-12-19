@@ -26,21 +26,27 @@ describe("Test ArtistClonedFactory contract", function () {
   async function deploy_Factory_Fix() {
     [owner, addr1, addr2, addr3, addr4, addr5, addr6] =
       await ethers.getSigners();
-    const platformAddress = addr6.address;
+
+    // Deploy Treasury first
+    const Treasury = await ethers.getContractFactory("Treasury");
+    const treasury = await Treasury.deploy(owner.address, addr6.address); // owner as admin, addr6 as treasurer
+    const treasuryAddress = await treasury.getAddress();
+
     const platformFeePercentage = 250; // 2.5%
     const masterAddress = await deploy_Master_Fix(); // Deploy master contract
 
     // Log the addresses to debug
-    console.log("Platform Address:", platformAddress);
+    console.log("Treasury Address:", treasuryAddress);
     console.log("Master Address:", masterAddress);
 
     Factory = await ethers.deployContract("ArtistClonedFactory", [
-      platformAddress,
-      masterAddress, // Use the deployed master address
+      treasuryAddress,
+      masterAddress,
       platformFeePercentage,
     ]);
     return {
       Factory,
+      treasury,
       owner,
       addr1,
       addr2,
@@ -48,7 +54,7 @@ describe("Test ArtistClonedFactory contract", function () {
       addr4,
       addr5,
       addr6,
-      platformAddress,
+      treasuryAddress,
       platformFeePercentage,
     };
   }
@@ -90,14 +96,14 @@ describe("Test ArtistClonedFactory contract", function () {
     return { Factory, owner, addr1, addr2, addr3, addr4, artists };
   }
 
-  async function deploy_Factory_With_Invalid_Platform_Address_Fix() {
+  async function deploy_Factory_With_Invalid_Treasury_Address_Fix() {
     [owner, addr1, addr2, addr3, addr4, addr5, addr6] =
       await ethers.getSigners();
-    const platformAddress = "0x0000000000000000000000000000000000000000"; // Use address 0
+    const treasuryAddress = "0x0000000000000000000000000000000000000000"; // Use address 0
     const platformFeePercentage = 250; // 2.5%
     const masterAddress = await deploy_Master_Fix(); // Deploy master contract
     return ethers.deployContract("ArtistClonedFactory", [
-      platformAddress, // Use address 0
+      treasuryAddress, // Use address 0
       masterAddress,
       platformFeePercentage,
     ]);
@@ -106,11 +112,11 @@ describe("Test ArtistClonedFactory contract", function () {
   async function deploy_Factory_With_Invalid_Master_Address_Fix() {
     [owner, addr1, addr2, addr3, addr4, addr5, addr6] =
       await ethers.getSigners();
-    const platformAddress = addr6.address;
+    const treasuryAddress = addr6.address;
     const platformFeePercentage = 250; // 2.5%
     const masterAddress = "0x0000000000000000000000000000000000000000"; // address 0
     return ethers.deployContract("ArtistClonedFactory", [
-      platformAddress,
+      treasuryAddress,
       masterAddress, // Use address 0
       platformFeePercentage,
     ]);
@@ -119,11 +125,11 @@ describe("Test ArtistClonedFactory contract", function () {
   async function deploy_Factory_With_Invalid_Platform_Fee_Percentage_Fix() {
     [owner, addr1, addr2, addr3, addr4, addr5, addr6] =
       await ethers.getSigners();
-    const platformAddress = addr6.address;
+    const treasuryAddress = addr6.address;
     const platformFeePercentage = 10100; // 101%
     const masterAddress = await deploy_Master_Fix(); // Deploy master contract
     return ethers.deployContract("ArtistClonedFactory", [
-      platformAddress,
+      treasuryAddress,
       masterAddress,
       platformFeePercentage,
     ]);
@@ -137,10 +143,10 @@ describe("Test ArtistClonedFactory contract", function () {
       expect(await Factory.owner()).to.equal(owner.address);
     });
 
-    it("Should NOT deploy the contract if platform address is NOT a valid ethereum address", async function () {
+    it("Should NOT deploy the contract if treasury address is NOT a valid ethereum address", async function () {
       await expect(
-        deploy_Factory_With_Invalid_Platform_Address_Fix()
-      ).to.be.revertedWith("Invalid platform address");
+        deploy_Factory_With_Invalid_Treasury_Address_Fix()
+      ).to.be.revertedWith("Invalid treasury address");
     });
 
     it("Should NOT deploy the contract if master artist collections address is NOT a valid ethereum address", async function () {
@@ -165,31 +171,30 @@ describe("Test ArtistClonedFactory contract", function () {
 
   // ::::::::::::: TESTING PLATFORM INFO ::::::::::::: //
 
-  describe("Platform Info Management", function () {
-    it("Should allow owner to update platform info", async function () {
-      // Test updating platform address and fee percentage
+  describe("Treasury Info Management", function () {
+    it("Should allow owner to update treasury info", async function () {
       let { Factory, owner, addr5 } = await loadFixture(deploy_Factory_Fix);
-      const newPlatformAddress = addr5.address; // Use .address to get the string representation
+      const newTreasuryAddress = addr5.address;
       const newPlatformFeePercentage = 500; // 5%
+
       await Factory.connect(owner).updatePlatformInfo(
-        newPlatformAddress,
+        newTreasuryAddress,
         newPlatformFeePercentage
       );
-      const platformInfo = await Factory.platformInfo();
-      expect(platformInfo.platformAddress).to.equal(newPlatformAddress);
-      expect(platformInfo.platformFeePercentage).to.equal(
-        newPlatformFeePercentage
-      );
+
+      const platformInfo = await Factory.getPlatformInfo();
+      expect(platformInfo[0]).to.equal(newTreasuryAddress); // treasuryAddress
+      expect(platformInfo[1]).to.equal(newPlatformFeePercentage); // platformFeePercentage
     });
 
     it("Should not allow non-owner to update platform info", async function () {
       // Test access control for platform info update
       let { Factory, owner, addr5 } = await loadFixture(deploy_Factory_Fix);
-      const newPlatformAddress = addr5.address; // Use .address to get the string representation
+      const newTreasuryAddress = addr5.address; // Use .address to get the string representation
       const newPlatformFeePercentage = 500; // 5%
       await expect(
         Factory.connect(addr5).updatePlatformInfo(
-          newPlatformAddress,
+          newTreasuryAddress,
           newPlatformFeePercentage
         )
       )

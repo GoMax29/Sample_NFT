@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/token/common/ERC2981.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./ArtistClonedFactory.sol";
 import "hardhat/console.sol";
-contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
+
+contract ArtistClonedCollections is
+    Initializable,
+    ERC1155Upgradeable,
+    OwnableUpgradeable
+{
     event CollectionCreated(
         address indexed artist,
         uint256 indexed collectionId,
@@ -25,19 +30,22 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
         uint256 collectionId
     );
 
+    event CollectionVisibilityChanged(
+        uint256 indexed collectionId,
+        bool isPublic
+    );
+
     struct Collection {
         string name;
         string style;
         string description;
         bool isPublic;
         string avatarIPFS_URL;
-        uint96 defaultRoyalties;
         uint256 lastTokenId;
     }
 
     struct Token {
         uint256 collectionId;
-        uint96 royalties;
         uint256 price;
         bool exists;
     }
@@ -55,40 +63,31 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
 
     address public factoryAddress;
 
-    bool private initialized;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    constructor()
-        ERC1155("https://your-metadata-uri/{id}.json")
-        ERC2981()
-        Ownable(msg.sender)
-    {}
-
-    // modifier onlyFactory() {
-    //     require(
-    //         msg.sender == factoryAddress,
-    //         "Only factory can call this function"
-    //     );
-    //     _;
-    // }
-
-    function initialize(address _artist, address _factoryAddress) external {
+    function initialize(
+        address _artist,
+        address _factoryAddress
+    ) external initializer {
         console.log("!!! ArtistClonedCollections.initialize !!!");
         console.log("msg.sender: ", msg.sender);
         console.log("factoryAddress: ", _factoryAddress);
         console.log("_artist: ", _artist);
-        require(!initialized, "Already initialized");
         require(_artist != address(0), "Invalid artist address");
-        require(msg.sender == _factoryAddress, "Caller is not the factory");
         require(_factoryAddress != address(0), "Invalid factory address");
-        initialized = true;
 
-        _transferOwnership(_artist);
+        // Properly initialize inherited contracts
+        __ERC1155_init("");
+        __Ownable_init(_artist);
+
+        // _transferOwnership(_artist);
         factoryAddress = _factoryAddress;
     }
 
-    // 0.1 Ether
-    uint256 tokenprice = 1 * 10 ** 17; // 0.1 * 10^18
-
+    //ça vener cyril !!
     modifier onlyArtist() {
         require(
             msg.sender == owner(),
@@ -99,7 +98,7 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
 
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(ERC1155, ERC2981) returns (bool) {
+    ) public view virtual override(ERC1155Upgradeable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
@@ -108,11 +107,8 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
         string memory _style,
         string memory _description,
         bool _isPublic,
-        string memory _avatarIPFS_URL,
-        uint96 _defaultRoyalties
+        string memory _avatarIPFS_URL
     ) external onlyArtist returns (uint256) {
-        require(_defaultRoyalties <= 10000, "Royalties must be <= 100%");
-
         collectionCounter++;
         collections[collectionCounter] = Collection({
             name: _name,
@@ -120,121 +116,65 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
             description: _description,
             isPublic: _isPublic,
             avatarIPFS_URL: _avatarIPFS_URL,
-            defaultRoyalties: _defaultRoyalties,
             lastTokenId: 0
         });
 
         //emit event
         emit CollectionCreated(msg.sender, collectionCounter, _name);
-
         return collectionCounter;
     }
 
     function createToken(
         uint256 _collectionId,
-        uint96 _tokenRoyalties,
         uint256 _price,
         string memory _tokenURI
     ) external onlyArtist returns (uint256) {
-        require(
-            _collectionId <= collectionCounter && _collectionId > 0,
-            "Invalid collection ID"
-        );
-        require(_tokenRoyalties <= 10000, "Royalties must be <= 100%");
-        require(_price > 0, "Price must be greater than 0");
+        require(_collectionId <= 1024, "Collection ID exceeds maximum");
+        require(_collectionId > 0, "Invalid collection ID");
 
         Collection storage collection = collections[_collectionId];
         collection.lastTokenId++;
-        uint256 newTokenId = (_collectionId * 1000000) + collection.lastTokenId;
+        require(
+            collection.lastTokenId <= 256,
+            "Token limit reached for collection"
+        );
+
+        // New token ID generation
+        uint256 newTokenId = (uint256(uint160(address(this))) << 32) | // Contract address (160 bits)
+            (_collectionId << 10) | // Collection ID (10 bits)
+            (collection.lastTokenId); // Token number (10 bits)
 
         tokens[newTokenId] = Token({
             collectionId: _collectionId,
-            royalties: _tokenRoyalties,
             price: _price,
             exists: true
         });
 
         _tokenURIs[newTokenId] = _tokenURI;
-        _setTokenRoyalty(newTokenId, owner(), _tokenRoyalties);
 
         //emit event
         emit TokenCreated(msg.sender, _collectionId, newTokenId);
-
         return newTokenId;
     }
-    // !! remove _collectionID or change the logic because already included in token ID
-    function mint(uint256 _tokenId, uint256 _collectionId) external payable {
-        Token storage token = tokens[_tokenId];
-        require(
-            collections[_collectionId].isPublic,
-            "Collection is not public"
-        );
-        require(token.exists, "Token does not exist");
-        require(!hasMinted[_tokenId][msg.sender], "Already minted this token");
-        require(msg.value == token.price, "Incorrect payment amount");
 
-        // Calculate shares
-        uint256 platformFee = getPlatformFee();
-        uint256 platformShare = (msg.value * platformFee) / 10000; // 2.5% for the platform updatable
-        uint256 artistShare = msg.value - platformShare; // 97.5% for the artist
-
-        address platformAddress = getPlatformAddress();
-        require(platformAddress != address(0), "Invalid platform address");
-
-        //attention au token de base de la layer 2 qui sera la référence pour "ether" donc arb pour arbitrum, pol pour polygon, etc
-        // Transfer shares to the platform and the artist
-        (bool platformSuccess, ) = payable(platformAddress).call{
-            value: platformShare
-        }("");
-        require(platformSuccess, "Platform payment failed");
-
-        (bool artistSuccess, ) = payable(owner()).call{value: artistShare}("");
-        require(artistSuccess, "Artist payment failed");
-
-        // Mark as minted and transfer token
-        hasMinted[_tokenId][msg.sender] = true;
-        _mint(msg.sender, _tokenId, 1, "");
-
-        //stocker les nft des utilisateurs avec mapping (address =>tab[collection][token])
-        //ou alors indexer les event  des mints
-
-        //emit event
-        emit TokenMinted(msg.sender, _tokenId, _collectionId);
+    function getCollectionAddress(
+        uint256 _tokenId
+    ) public pure returns (address) {
+        return address(uint160(_tokenId >> 32));
     }
 
-    //compléxifier avec achat revente ?
-
-    function getPlatformFee() public view returns (uint256) {
-        (, uint256 platformFeePercentage, ) = ArtistClonedFactory(
-            factoryAddress
-        ).platformInfo();
-        return platformFeePercentage;
+    function getCollectionId(uint256 _tokenId) public pure returns (uint256) {
+        return (_tokenId >> 10) & 0x3FF;
     }
 
-    function getPlatformAddress() public view returns (address) {
-        (address platformAddress, , ) = ArtistClonedFactory(factoryAddress)
-            .platformInfo();
-        return platformAddress;
+    function getTokenNumber(uint256 _tokenId) public pure returns (uint256) {
+        return _tokenId & 0x3FF;
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
         require(tokens[tokenId].exists, "Token does not exist");
         return _tokenURIs[tokenId];
     }
-
-    // function dropToSubscribers(uint256 tokenId) external onlyArtist {
-    //     require(tokens[tokenId].exists, "Token does not exist");
-    //     address[] memory subscribers = artistsManagement.getSubscribers(
-    //         msg.sender
-    //     );
-
-    //     for (uint256 i = 0; i < subscribers.length; i++) {
-    //         if (!hasMinted[tokenId][subscribers[i]]) {
-    //             hasMinted[tokenId][subscribers[i]] = true;
-    //             _mint(subscribers[i], tokenId, 1, "");
-    //         }
-    //     }
-    // }
 
     // Add getter for token price
     function getTokenPrice(uint256 _tokenId) external view returns (uint256) {
@@ -255,4 +195,101 @@ contract ArtistClonedCollections is ERC1155, Ownable, ERC2981 {
     // Required for receiving ETH
     receive() external payable {}
     fallback() external payable {}
+
+    function mintBatch(uint256[] memory _tokenIds) external payable {
+        require(_tokenIds.length > 0, "Empty token array");
+
+        uint256 totalCost = 0;
+
+        // Track tokens to actually mint
+        uint256[] memory tokensToMint = new uint256[](_tokenIds.length);
+        uint256 actualMintCount = 0;
+
+        // Validate tokens and calculate total cost
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            Token storage token = tokens[_tokenIds[i]];
+            uint256 collectionId = getCollectionId(_tokenIds[i]);
+
+            require(token.exists, "Token does not exist");
+            require(
+                collections[collectionId].isPublic,
+                "Collection is not public"
+            );
+
+            // Only add to mint list if not already minted
+            if (!hasMinted[_tokenIds[i]][msg.sender]) {
+                totalCost += token.price;
+                tokensToMint[actualMintCount] = _tokenIds[i];
+                actualMintCount++;
+            }
+        }
+
+        require(msg.value == totalCost, "Incorrect payment amount");
+
+        // Skip platform and artist payment if no tokens to mint
+        if (actualMintCount > 0) {
+            // Get platform info
+            (
+                address treasuryAddress,
+                uint256 platformFeePercentage,
+
+            ) = ArtistClonedFactory(factoryAddress).getPlatformInfo();
+
+            require(treasuryAddress != address(0), "Invalid treasury address");
+
+            // Calculate shares
+            uint256 platformShare = (msg.value * platformFeePercentage) / 10000;
+            uint256 artistShare = msg.value - platformShare;
+
+            // Transfer platform fee
+            (bool treasurySuccess, ) = payable(treasuryAddress).call{
+                value: platformShare
+            }("");
+            require(treasurySuccess, "Treasury payment failed");
+
+            // Transfer artist share
+            (bool artistSuccess, ) = payable(owner()).call{value: artistShare}(
+                ""
+            );
+            require(artistSuccess, "Artist payment failed");
+
+            // Prepare final arrays for minting (trimmed to actual mint count)
+            uint256[] memory finalTokensToMint = new uint256[](actualMintCount);
+            uint256[] memory amounts = new uint256[](actualMintCount);
+
+            for (uint256 i = 0; i < actualMintCount; i++) {
+                finalTokensToMint[i] = tokensToMint[i];
+                amounts[i] = 1;
+                hasMinted[tokensToMint[i]][msg.sender] = true;
+            }
+
+            // Batch mint only non-minted tokens
+            _mintBatch(msg.sender, finalTokensToMint, amounts, "");
+
+            // Emit batch event
+            emit TransferBatch(
+                msg.sender,
+                address(0),
+                msg.sender,
+                finalTokensToMint,
+                amounts
+            );
+        }
+    }
+
+    function toggleCollectionVisibility(
+        uint256 _collectionId
+    ) external onlyArtist {
+        require(
+            _collectionId > 0 && _collectionId <= collectionCounter,
+            "Collection does not exist"
+        );
+
+        Collection storage collection = collections[_collectionId];
+
+        // Toggle the isPublic value
+        collection.isPublic = !collection.isPublic;
+
+        emit CollectionVisibilityChanged(_collectionId, collection.isPublic);
+    }
 }

@@ -19,7 +19,7 @@ contract ArtistClonedFactory is Ownable {
     );
 
     struct PlatformInfo {
-        address platformAddress;
+        address treasuryAddress;
         uint256 platformFeePercentage;
         uint256 lastUpdated;
     }
@@ -28,7 +28,6 @@ contract ArtistClonedFactory is Ownable {
         string name;
         string[] musicStyles;
         uint256 deploymentDate;
-        address collectionsContract;
         bool isRegistered;
     }
 
@@ -44,13 +43,16 @@ contract ArtistClonedFactory is Ownable {
     // Pour garder une trace de tous les artistes
     address[] public registeredArtists;
 
+    // Add this to your existing contract
+    mapping(string => bool) public artistNameTaken;
+
     constructor(
-        address _platformAddress,
+        address _treasuryAddress,
         address _masterArtistCollectionsAddress,
         uint256 _platformFeePercentage
     ) Ownable(msg.sender) {
         //verify is platform address is a valid ethereum address
-        require(_platformAddress != address(0), "Invalid platform address");
+        require(_treasuryAddress != address(0), "Invalid treasury address");
         //verify is master artist collections address is a valid ethereum address
         require(
             _masterArtistCollectionsAddress != address(0),
@@ -62,22 +64,13 @@ contract ArtistClonedFactory is Ownable {
         );
 
         platformInfo = PlatformInfo({
-            platformAddress: _platformAddress,
+            treasuryAddress: _treasuryAddress,
             platformFeePercentage: _platformFeePercentage,
             lastUpdated: block.timestamp
         });
         // masterArtistCollections is the address of the master ArtistCollections
         // contract and has been deployed and verified before the factory contract deployment
         masterArtistCollections = _masterArtistCollectionsAddress;
-    }
-
-    function updatePlatformInfo(
-        address _newPlatformAddress,
-        uint256 _newPlatformFeePercentage
-    ) external onlyOwner {
-        platformInfo.platformAddress = _newPlatformAddress;
-        platformInfo.platformFeePercentage = _newPlatformFeePercentage;
-        platformInfo.lastUpdated = block.timestamp;
     }
 
     function deployArtistClonedCollections(
@@ -94,14 +87,14 @@ contract ArtistClonedFactory is Ownable {
             _musicStyles.length > 0,
             "Must provide at least one music style"
         );
+        // Add name uniqueness check
+        require(!artistNameTaken[_artistName], "Artist name already exists");
 
         // Cloner le Master
         address payable clone = payable(Clones.clone(masterArtistCollections));
-
         console.log("address(this): ", address(this));
         // Initialiser le Clone
         ArtistClonedCollections(clone).initialize(msg.sender, address(this));
-
         // Enregistrer le Clone
         artistToCollections[msg.sender] = clone;
         console.log("!!! ArtistClonedFactory: !!!");
@@ -111,16 +104,39 @@ contract ArtistClonedFactory is Ownable {
             name: _artistName,
             musicStyles: _musicStyles,
             deploymentDate: block.timestamp,
-            collectionsContract: clone,
             isRegistered: true
         });
-
         registeredArtists.push(msg.sender);
-
+        // Mark the name as taken
+        artistNameTaken[_artistName] = true;
         emit ArtistCollectionsDeployed(msg.sender, clone);
         emit ArtistRegistered(msg.sender, _artistName, block.timestamp);
-
         return clone;
+    }
+
+    function updatePlatformInfo(
+        address _newTreasuryAddress,
+        uint256 _newPlatformFeePercentage
+    ) external onlyOwner {
+        platformInfo.treasuryAddress = _newTreasuryAddress;
+        platformInfo.platformFeePercentage = _newPlatformFeePercentage;
+        platformInfo.lastUpdated = block.timestamp;
+    }
+
+    function getPlatformInfo()
+        external
+        view
+        returns (
+            address treasuryAddress,
+            uint256 platformFeePercentage,
+            uint256 lastUpdated
+        )
+    {
+        return (
+            platformInfo.treasuryAddress,
+            platformInfo.platformFeePercentage,
+            platformInfo.lastUpdated
+        );
     }
 
     // Fonction pour obtenir les informations d'un artiste
@@ -133,7 +149,6 @@ contract ArtistClonedFactory is Ownable {
             string memory name,
             string[] memory musicStyles,
             uint256 deploymentDate,
-            address collectionsContract,
             bool isRegistered
         )
     {
@@ -142,7 +157,6 @@ contract ArtistClonedFactory is Ownable {
             info.name,
             info.musicStyles,
             info.deploymentDate,
-            info.collectionsContract,
             info.isRegistered
         );
     }

@@ -56,4 +56,8 @@ contracts/Lock.sol
 # ArtistsManagement.sol
 contracts/ArtistsManagement.sol
 
+#ArtistFactory.sol
+contracts/ArtistFactory.sol
 
+#ArtistCollections.sol
+contracts/ArtistCollections.sol
