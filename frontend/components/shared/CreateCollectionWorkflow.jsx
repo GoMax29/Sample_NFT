@@ -200,15 +200,6 @@ const CreateCollectionWorkflow = () => {
   // File upload handling with updated metadata
   const onDrop = useCallback(
     async (acceptedFiles) => {
-      if (!pinata) {
-        toast({
-          title: "Error",
-          description: "Pinata is not initialized",
-          variant: "destructive",
-        });
-        return;
-      }
-
       if (!isRegistered) {
         toast({
           title: "Artist Not Registered",
@@ -231,10 +222,17 @@ const CreateCollectionWorkflow = () => {
         for (let i = 0; i < acceptedFiles.length; i++) {
           const file = acceptedFiles[i];
 
-          const fileBlob = new Blob([file], { type: file.type });
-          const fileUpload = await pinata.upload.file(
-            new File([fileBlob], file.name, { type: file.type })
-          );
+          // New upload handling
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+          const fileUpload = { IpfsHash: result.IpfsHash };
 
           // Update metadata to use collectionName and selectedStyle
           const metadata = {
@@ -256,10 +254,20 @@ const CreateCollectionWorkflow = () => {
             },
           };
 
-          console.log("Uploading metadata:", metadata);
+          // Upload metadata
+          const metadataFormData = new FormData();
+          const metadataBlob = new Blob([JSON.stringify(metadata)], {
+            type: "application/json",
+          });
+          metadataFormData.append("file", metadataBlob, "metadata.json");
 
-          const jsonUpload = await pinata.upload.json(metadata);
-          uploadedCIDs.push(jsonUpload.IpfsHash);
+          const metadataResponse = await fetch("/api/upload", {
+            method: "POST",
+            body: metadataFormData,
+          });
+
+          const metadataResult = await metadataResponse.json();
+          uploadedCIDs.push(metadataResult.IpfsHash);
         }
 
         // Update collection metadata
@@ -279,8 +287,19 @@ const CreateCollectionWorkflow = () => {
           })),
         };
 
-        const collectionJson = await pinata.upload.json(collectionMetadata);
-        setBaseURI(`ipfs://${collectionJson.IpfsHash}/`);
+        const collectionFormData = new FormData();
+        const collectionBlob = new Blob([JSON.stringify(collectionMetadata)], {
+          type: "application/json",
+        });
+        collectionFormData.append("file", collectionBlob, "collection.json");
+
+        const collectionResponse = await fetch("/api/upload", {
+          method: "POST",
+          body: collectionFormData,
+        });
+
+        const collectionResult = await collectionResponse.json();
+        setBaseURI(`ipfs://${collectionResult.IpfsHash}/`);
         setUploadedCIDs(uploadedCIDs);
         setUploadedFiles(acceptedFiles);
 
@@ -301,17 +320,16 @@ const CreateCollectionWorkflow = () => {
       }
     },
     [
-      pinata,
-      toast,
-      address,
+      isRegistered,
       artistName,
       localArtistName,
       collectionCounterData,
-      collectionData,
-      tokenPrice,
-      isRegistered,
+      address,
       collectionName,
+      collectionData.description,
       selectedStyle,
+      tokenPrice,
+      toast,
     ]
   );
 
