@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CreateCollectionWorkflow } from "@/components/shared/CreateCollectionWorkflow";
+import CreateCollectionWorkflow from "@/components/shared/CreateCollectionWorkflow";
 
 const CreateCollectionModal = ({
   isOpen,
