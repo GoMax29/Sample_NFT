@@ -19,8 +19,8 @@ const queryClient = new QueryClient({
 });
 
 const { connectors } = getDefaultWallets({
-  appName: "Your App Name",
-  projectId: "YOUR_PROJECT_ID",
+  appName: "NFT_Sample_Creator",
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_ID || "",
   chains: [baseSepolia],
 });
 
