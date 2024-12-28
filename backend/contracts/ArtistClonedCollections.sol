@@ -35,6 +35,13 @@ contract ArtistClonedCollections is
         bool isPublic
     );
 
+    event TokensBatchCreated(
+        address indexed artist,
+        uint256 indexed collectionId,
+        uint256[] tokenIds,
+        uint256[] prices
+    );
+
     struct Collection {
         string name;
         string style;
@@ -291,5 +298,62 @@ contract ArtistClonedCollections is
         collection.isPublic = !collection.isPublic;
 
         emit CollectionVisibilityChanged(_collectionId, collection.isPublic);
+    }
+
+    function batchCreateToken(
+        uint256 _collectionId,
+        uint256[] memory _pricesArray,
+        string[] memory _tokenURIsArray
+    ) external onlyArtist returns (uint256[] memory) {
+        require(_collectionId <= 1024, "Collection ID exceeds maximum");
+        require(_collectionId > 0, "Invalid collection ID");
+        require(
+            _pricesArray.length == _tokenURIsArray.length,
+            "Arrays length mismatch"
+        );
+        require(
+            _pricesArray.length > 0 && _pricesArray.length <= 50,
+            "Invalid batch size"
+        );
+
+        Collection storage collection = collections[_collectionId];
+        require(
+            collection.lastTokenId + _pricesArray.length <= 256,
+            "Token limit would be exceeded"
+        );
+
+        uint256[] memory newTokenIds = new uint256[](_pricesArray.length);
+
+        for (uint256 i = 0; i < _pricesArray.length; i++) {
+            require(_pricesArray[i] > 0, "Price must be greater than 0");
+
+            // Use unchecked to save gas on incrementing lastTokenId
+            unchecked {
+                collection.lastTokenId++;
+            }
+
+            uint256 newTokenId = (uint256(uint160(address(this))) << 32) |
+                (_collectionId << 10) |
+                (collection.lastTokenId);
+
+            tokens[newTokenId] = Token({
+                collectionId: _collectionId,
+                price: _pricesArray[i],
+                exists: true
+            });
+
+            _tokenURIs[newTokenId] = _tokenURIsArray[i];
+            newTokenIds[i] = newTokenId;
+
+            emit TokenCreated(msg.sender, _collectionId, newTokenId);
+        }
+
+        emit TokensBatchCreated(
+            msg.sender,
+            _collectionId,
+            newTokenIds,
+            _pricesArray
+        );
+        return newTokenIds;
     }
 }

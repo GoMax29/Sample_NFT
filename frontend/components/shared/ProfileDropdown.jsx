@@ -11,10 +11,13 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import Subscribe from "./Subscribe";
+import { useDisconnect } from "wagmi";
 
-const ProfileDropdown = ({ isRegistered, artistName, address, children }) => {
-  const router = useRouter();
+const ProfileDropdown = ({ children, isRegistered, artistName, address }) => {
+  const { disconnect } = useDisconnect();
   const [showSubscribe, setShowSubscribe] = useState(false);
+  const [localArtistName, setLocalArtistName] = useState(artistName);
+  const router = useRouter();
 
   const handleProfileClick = () => {
     if (isRegistered) {
@@ -24,34 +27,66 @@ const ProfileDropdown = ({ isRegistered, artistName, address, children }) => {
     }
   };
 
+  const handleRegistrationSuccess = (name) => {
+    setLocalArtistName(name);
+    setShowSubscribe(false);
+    router.refresh();
+  };
+
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={handleProfileClick}>
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {isRegistered && (
-            <DropdownMenuItem
-              onClick={() => router.push("/CreateNewCollection")}
-              className="flex items-center"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create New Collection
-            </DropdownMenuItem>
+          {isRegistered ? (
+            <>
+              <DropdownMenuItem
+                onClick={() => router.push("/account")}
+                className="cursor-pointer"
+              >
+                My Profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onClick={() => router.push("/my-samples")}
+                className="cursor-pointer"
+              >
+                My Samples
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onClick={() => router.push("/my-collections")}
+                className="cursor-pointer"
+              >
+                My Collections
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : (
+            <>
+              <DropdownMenuItem
+                onClick={handleProfileClick}
+                className="cursor-pointer"
+              >
+                Register as Artist
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
           )}
+          <DropdownMenuItem
+            onClick={() => disconnect()}
+            className="cursor-pointer text-red-600"
+          >
+            Disconnect
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
       <Subscribe
         isOpen={showSubscribe}
         onClose={() => setShowSubscribe(false)}
-        onSuccess={() => {
-          setShowSubscribe(false);
-          router.push("/account");
-        }}
+        onSuccess={handleRegistrationSuccess}
       />
     </>
   );

@@ -181,7 +181,9 @@ const Subscribe = ({ isOpen, onClose, onSuccess }) => {
 
   const handleModalClose = () => {
     // Clear any existing toasts when closing the modal
-    toast.dismiss();
+    if (toast.clear) {
+      toast.clear(); // Use the correct method based on your toast library
+    }
     onClose();
     router.replace("/");
   };

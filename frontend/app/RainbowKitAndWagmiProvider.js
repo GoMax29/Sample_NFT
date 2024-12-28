@@ -1,28 +1,46 @@
 "use client";
 import "@rainbow-me/rainbowkit/styles.css";
 
-import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { useState, useEffect } from "react";
+import { getDefaultWallets, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
-import { sepolia, hardhat } from "wagmi/chains";
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { baseSepolia } from "viem/chains";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { config } from "@/config/wagmi";
 
-const config = getDefaultConfig({
-  appName: "NFT_Sample_Creator",
-  projectId: "c0a65de56edfae2bb6b378197b21df63",
-  chains: [hardhat, sepolia],
-  ssr: true, // If your dApp uses server side rendering (SSR)
+// Create the client outside of the component
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 60000,
+    },
+  },
 });
 
-const queryClient = new QueryClient();
+const { connectors } = getDefaultWallets({
+  appName: "Your App Name",
+  projectId: "YOUR_PROJECT_ID",
+  chains: [baseSepolia],
+});
 
-const RainbowKitAndWagmiProvider = ({ children }) => {
+export default function RainbowKitAndWagmiProvider({ children }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>{children}</RainbowKitProvider>
+        <RainbowKitProvider chains={[baseSepolia]}>
+          {children}
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
-};
-
-export default RainbowKitAndWagmiProvider;
+}

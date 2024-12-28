@@ -1,10 +1,18 @@
-// Contract Addresses from your latest deployment
+// Contract Addresses for hardhat
+// export const TREASURY_CONTRACT_ADDRESS =
+//   "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+// export const ARTIST_COLLECTIONS_IMPL_ADDRESS =
+//   "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+// export const FACTORY_CONTRACT_ADDRESS =
+//   "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+
+// Contract Addresses for base sepolia
 export const TREASURY_CONTRACT_ADDRESS =
-  "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  "0x145D50E8dAeAAB284CAc5d888759657229fB723D";
 export const ARTIST_COLLECTIONS_IMPL_ADDRESS =
-  "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+  "0xEABcB578F9Ef0B4583B523fc57C05188a098621E";
 export const FACTORY_CONTRACT_ADDRESS =
-  "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+  "0x9B552406037758e7f9B3623e6F0e678EF6Ceec3e";
 
 // Treasury ABI
 export const TREASURY_ABI = [
@@ -536,6 +544,37 @@ export const ARTIST_COLLECTIONS_ABI = [
       {
         indexed: true,
         internalType: "address",
+        name: "artist",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "collectionId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "tokenIds",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "prices",
+        type: "uint256[]",
+      },
+    ],
+    name: "TokensBatchCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
         name: "operator",
         type: "address",
       },
@@ -673,6 +712,35 @@ export const ARTIST_COLLECTIONS_ABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_collectionId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256[]",
+        name: "_pricesArray",
+        type: "uint256[]",
+      },
+      {
+        internalType: "string[]",
+        name: "_tokenURIsArray",
+        type: "string[]",
+      },
+    ],
+    name: "batchCreateToken",
+    outputs: [
+      {
+        internalType: "uint256[]",
+        name: "",
+        type: "uint256[]",
+      },
+    ],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {

@@ -109,6 +109,10 @@ contract ArtistClonedFactory is Ownable {
         registeredArtists.push(msg.sender);
         // Mark the name as taken
         artistNameTaken[_artistName] = true;
+        console.log(
+            "artistInfo[msg.sender].name: ",
+            artistInfo[msg.sender].name
+        );
         emit ArtistCollectionsDeployed(msg.sender, clone);
         emit ArtistRegistered(msg.sender, _artistName, block.timestamp);
         return clone;

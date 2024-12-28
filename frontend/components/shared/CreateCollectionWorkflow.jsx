@@ -11,7 +11,11 @@ import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useWaitForTransaction,
 } from "wagmi";
+import { parseEther } from "viem";
+import { decodeEventLog } from "viem";
+import { useRouter } from "next/navigation";
 
 import {
   FACTORY_CONTRACT_ADDRESS,
@@ -24,6 +28,7 @@ import Link from "next/link";
 import MusicStyleSelector from "./MusicStyleSelector";
 import debounce from "lodash/debounce";
 import { CheckCircle, XCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const CreateCollectionWorkflow = () => {
   const [collectionName, setCollectionName] = useState("");
@@ -43,11 +48,38 @@ const CreateCollectionWorkflow = () => {
     description: "",
     isPublic: false,
   });
+  const [isCreating, setIsCreating] = useState(false);
+  const [pendingBatchCreation, setPendingBatchCreation] = useState(false);
+  const [currentCollectionId, setCurrentCollectionId] = useState(null);
+  const [isPublic, setIsPublic] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { toast } = useToast();
+  const router = useRouter();
 
-  // Get collection address with refetch capability
+  const {
+    data: hash,
+    error: writeError,
+    isPending: writePending,
+    writeContract,
+  } = useWriteContract();
+
+  const { isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const {
+    data: artistInfo,
+    error: artistInfoError,
+    refetch: refetchArtistInfo,
+  } = useReadContract({
+    address: FACTORY_CONTRACT_ADDRESS,
+    abi: FACTORY_ABI,
+    functionName: "getArtistInfo",
+    args: [address || "0x0000000000000000000000000000000000000000"],
+    enabled: !!address,
+  });
+
   const {
     data: collectionAddress,
     error: addressError,
@@ -60,7 +92,6 @@ const CreateCollectionWorkflow = () => {
     enabled: !!address,
   });
 
-  // Get collection counter with refetch capability
   const {
     data: collectionCounterData,
     error: collectionIdError,
@@ -78,21 +109,9 @@ const CreateCollectionWorkflow = () => {
       collectionAddress !== "0x0000000000000000000000000000000000000000",
   });
 
-  const {
-    data: hash,
-    error: writeError,
-    isPending: writePending,
-    writeContract,
-  } = useWriteContract({});
-
-  // Add effect to refetch data after collection creation
-  const { isSuccess: isDeploySuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
-
   useEffect(() => {
-    if (isDeploySuccess) {
-      // Refetch both collection address and counter
+    if (isSuccess && receipt) {
+      console.log("Transaction successful:", { hash, receipt });
       refetchCollectionAddress();
       refetchCollectionCounter();
       refetchArtistInfo();
@@ -102,21 +121,7 @@ const CreateCollectionWorkflow = () => {
         variant: "success",
       });
     }
-  }, [
-    isDeploySuccess,
-    refetchCollectionAddress,
-    refetchCollectionCounter,
-    toast,
-  ]);
-
-  // Get artist info with proper destructuring
-  const { data: artistInfo, error: artistInfoError } = useReadContract({
-    address: FACTORY_CONTRACT_ADDRESS,
-    abi: FACTORY_ABI,
-    functionName: "getArtistInfo",
-    args: [address || "0x0000000000000000000000000000000000000000"],
-    enabled: !!address,
-  });
+  }, [isSuccess, receipt]);
 
   // Destructure artistInfo array
   const [artistName, musicStyles, deploymentDate, isRegistered] =
@@ -139,17 +144,17 @@ const CreateCollectionWorkflow = () => {
       return;
     }
 
-    // Check if address exists and artistInfo has been fetched
-    if (address && artistInfo) {
-      if (!artistInfo.isRegistered) {
-        toast({
-          title: "Artist Not Registered",
-          description:
-            "Please register as an artist before creating a collection",
-          variant: "warning",
-        });
-      }
-    }
+    //   // Check if address exists and artistInfo has been fetched
+    // if (address && artistInfo) {
+    //   if (!artistInfo.isRegistered) {
+    //     toast({
+    //       title: "Artist Not Registered",
+    //       description:
+    //         "Please register as an artist before creating a collection",
+    //       variant: "warning",
+    //     });
+    //   }
+    // }
   }, [address, toast, artistInfo]); // Include artistInfo in dependency array
 
   // Debug effect to log artistInfo
@@ -337,6 +342,7 @@ const CreateCollectionWorkflow = () => {
           collectionData.name,
           collectionData.style,
           collectionData.description,
+          isPublic,
           defaultAvatarIPFS,
         ],
       });
@@ -419,6 +425,127 @@ const CreateCollectionWorkflow = () => {
     };
   }, [collectionName, checkName]);
 
+  // Move useEffect to component level
+  useEffect(() => {
+    const createBatchTokens = async () => {
+      if (isSuccess && receipt && pendingBatchCreation && currentCollectionId) {
+        console.log("Collection created, starting batch token creation...");
+        console.log("Using collection ID:", currentCollectionId);
+
+        try {
+          const prices = new Array(uploadedCIDs.length).fill(
+            parseEther(tokenPrice)
+          );
+          const tokenURIs = uploadedCIDs.map((cid) => `ipfs://${cid}`);
+
+          await writeContract({
+            address: collectionAddress,
+            abi: ARTIST_COLLECTIONS_ABI,
+            functionName: "batchCreateToken",
+            args: [currentCollectionId, prices, tokenURIs],
+          });
+
+          toast({
+            title: "Tokens Created Successfully",
+            description: `${uploadedCIDs.length} tokens created in collection "${collectionName}"`,
+            variant: "success",
+          });
+
+          setPendingBatchCreation(false);
+        } catch (error) {
+          console.error("Error in batch token creation:", error);
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    createBatchTokens();
+  }, [isSuccess, receipt, pendingBatchCreation, currentCollectionId]);
+
+  const handleCreateCollection = async () => {
+    if (!uploadedCIDs.length) return;
+
+    try {
+      setIsCreating(true);
+      console.log("Starting collection creation...");
+
+      // Get collection ID that will be used
+      const collectionId = collectionCounterData
+        ? (parseInt(collectionCounterData.toString(), 10) + 1).toString()
+        : "1";
+
+      console.log("Using collection ID:", collectionId);
+      setCurrentCollectionId(collectionId); // Store the collection ID
+
+      // Create Collection
+      const result = await writeContract({
+        address: collectionAddress,
+        abi: ARTIST_COLLECTIONS_ABI,
+        functionName: "createCollection",
+        args: [
+          collectionName,
+          selectedStyle,
+          collectionData.description,
+          isPublic,
+          collectionData.avatarIPFS_URL || "",
+        ],
+      });
+
+      console.log("Write contract result:", result);
+      setPendingBatchCreation(true);
+    } catch (error) {
+      console.error("Error in collection creation:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add this effect to track the transaction status
+  useEffect(() => {
+    if (writeError) {
+      console.error("Write error:", writeError);
+      toast({
+        title: "Error",
+        description: writeError.message,
+        variant: "destructive",
+      });
+      setIsCreating(false);
+    }
+  }, [writeError]);
+
+  useEffect(() => {
+    if (writePending) {
+      console.log("Write pending...");
+    }
+  }, [writePending]);
+
+  useEffect(() => {
+    if (isSuccess && receipt) {
+      console.log("Transaction successful:", { hash, receipt });
+      // Handle successful transaction
+      refetchCollectionAddress();
+      refetchCollectionCounter();
+      refetchArtistInfo();
+      toast({
+        title: "Collection Created",
+        description: "Your collection has been created successfully!",
+        variant: "success",
+      });
+      setIsCreating(false);
+    }
+  }, [isSuccess, receipt]);
+
+  const handleIsPublicChange = (checked) => {
+    setIsPublic(checked);
+  };
+
   return (
     <div className="space-y-8">
       {!pinata && (
@@ -433,28 +560,6 @@ const CreateCollectionWorkflow = () => {
           Please connect your wallet to create a collection
         </div>
       )}
-
-      {/* Profile Button
-      <div className="flex justify-end">
-        <Link href="/ArtistDashboard">
-          <Button
-            variant="outline"
-            className="flex items-center space-x-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-full px-4 py-2"
-          >
-            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-              {artistName ? artistName[0].toUpperCase() : "?"}
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">
-                {artistName || "Unknown Artist"}
-              </span>
-              <span className="text-xs text-gray-500">
-                {truncateAddress(address)}
-              </span>
-            </div>
-          </Button>
-        </Link>
-      </div> */}
 
       {/* Registration Warning */}
       {!isRegistered && (
@@ -538,17 +643,13 @@ const CreateCollectionWorkflow = () => {
           value={tokenPrice}
           onChange={(e) => setTokenPrice(e.target.value)}
         />
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 mb-4">
           <Checkbox
             id="isPublic"
-            checked={collectionData.isPublic}
-            onCheckedChange={(checked) =>
-              setCollectionData((prev) => ({ ...prev, isPublic: checked }))
-            }
+            checked={isPublic}
+            onCheckedChange={handleIsPublicChange}
           />
-          <label htmlFor="isPublic">
-            Make collection public in marketplace
-          </label>
+          <label htmlFor="isPublic">Make collection public</label>
         </div>
       </div>
 
@@ -580,11 +681,27 @@ const CreateCollectionWorkflow = () => {
 
       {/* Deploy Button */}
       <Button
+        onClick={handleCreateCollection}
+        disabled={
+          isCreating ||
+          !collectionName ||
+          !selectedStyle ||
+          !uploadedFiles.length ||
+          uploadedFiles.length === 0 ||
+          !uploadedCIDs.length ||
+          !tokenPrice ||
+          !collectionData.description
+        }
         className="w-full"
-        onClick={deployCollection}
-        disabled={isUploading || !baseURI}
       >
-        {isUploading ? "Uploading..." : "Create Collection"}
+        {isCreating ? (
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Creating...
+          </div>
+        ) : (
+          "Create Collection"
+        )}
       </Button>
 
       {/* Button to fetch artist name */}
