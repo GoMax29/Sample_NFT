@@ -195,7 +195,7 @@ const CreateCollectionWorkflow = () => {
     }));
   };
   const defaultAvatarIPFS =
-    "https://amethyst-worrying-squid-449.mypinata.cloud/ipfs/bafkreidg2lqvm5lolzodu2qyctirhcdymdhucp276scaoioccznkokfsae";
+    "https://amethyst-worrying-squid-449.mypinata.cloud/ipfs/bafkreifm4jaawnsvrgh3vxivalkypwmic5a2rq4rf7ryljw5su2mrmgyam";
 
   // File upload handling with updated metadata
   const onDrop = useCallback(
@@ -252,6 +252,7 @@ const CreateCollectionWorkflow = () => {
               price: tokenPrice,
               sample: `https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/${fileUpload.IpfsHash}`,
             },
+            image: defaultAvatarIPFS,
           };
 
           // Upload metadata

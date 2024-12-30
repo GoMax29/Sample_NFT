@@ -5,7 +5,8 @@ import { useAccount, useReadContract } from "wagmi";
 import { useRouter } from "next/navigation";
 import { FACTORY_CONTRACT_ADDRESS, FACTORY_ABI } from "@/constants";
 import CreateCollectionWorkflow from "@/components/shared/CreateCollectionWorkflow";
-
+import { useToast } from "@/hooks/use-toast";
+import "../globals.css";
 export default function CreateCollectionPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();

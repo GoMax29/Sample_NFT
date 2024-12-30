@@ -28,6 +28,14 @@ export default function Home() {
     enabled: true,
   });
 
+  const { data: artistInfo } = useReadContract({
+    address: FACTORY_CONTRACT_ADDRESS,
+    abi: FACTORY_ABI,
+    functionName: "getArtistInfo",
+    args: [address || "0x0000000000000000000000000000000000000000"],
+    enabled: !!address,
+  });
+
   useEffect(() => {
     const fetchCollections = async () => {
       if (!totalArtists) return;
@@ -220,10 +228,25 @@ export default function Home() {
       {/* Recommended Collections Section */}
       {isConnected && recommendedCollections.length > 0 && (
         <section className="mb-12">
-          <h2 className="text-2xl font-bold mb-6">Collections You May Like</h2>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">Collections You May Like</h2>
+            {artistInfo && artistInfo[1] && (
+              <p className="text-sm text-gray-500 mt-1">
+                Based on your favorite styles:{" "}
+                {Array.isArray(artistInfo[1])
+                  ? artistInfo[1].join(", ")
+                  : artistInfo[1]}
+              </p>
+            )}
+          </div>
           <div className="flex flex-wrap gap-6 justify-center">
             {recommendedCollections
-              .filter((collection) => collection.isPublic === true)
+              .filter(
+                (collection) =>
+                  collection.isPublic === true &&
+                  collection.artistAddress.toLowerCase() !==
+                    address.toLowerCase()
+              )
               .map((collection, index) => (
                 <CollectionCard
                   key={`${collection.artistAddress}-${collection.collectionId}`}

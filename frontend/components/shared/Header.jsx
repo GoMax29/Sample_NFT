@@ -12,6 +12,7 @@ import { FACTORY_CONTRACT_ADDRESS, FACTORY_ABI } from "@/constants";
 import { useState, useEffect } from "react";
 import SubscribeModal from "@/components/shared/SubscribeModal";
 import ClientOnly from "./ClientOnly";
+import Image from "next/image";
 
 const Header = () => {
   const { address, isConnected } = useAccount();
@@ -99,7 +100,7 @@ const Header = () => {
       });
       return;
     }
-    router.push("/my-samples");
+    router.push("/create-music");
   };
 
   const handleSubmitSamples = () => {
@@ -125,7 +126,13 @@ const Header = () => {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <Link href="/" className="text-xl font-bold">
-                Logo
+                <Image
+                  src="/Nifty Sample mini Logo jpeg.jpg"
+                  alt="Nifty Sample mini Logo"
+                  width={60}
+                  height={60}
+                  priority
+                />
               </Link>
             </div>
 
