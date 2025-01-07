@@ -126,13 +126,14 @@ const Header = () => {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <Link href="/" className="text-xl font-bold">
-                <Image
+                {/* <Image
                   src="/Nifty Sample mini Logo jpeg.jpg"
                   alt="Nifty Sample mini Logo"
                   width={60}
                   height={60}
                   priority
-                />
+                /> */}
+                Sonic Forge
               </Link>
             </div>
 
