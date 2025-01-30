@@ -9,7 +9,14 @@ import {
 } from "@/constants";
 import CollectionCard from "@/components/shared/CollectionCard";
 import "../app/globals.css";
+import MaintenanceBanner from "@/components/shared/MaintenanceBanner";
 export default function Home() {
+  const isMaintenance = true; // Mettre à false pour désactiver
+
+  if (isMaintenance) {
+    return <MaintenanceBanner />;
+  }
+
   const { address, isConnected } = useAccount();
   const [allCollections, setAllCollections] = useState([]);
   const [recommendedCollections, setRecommendedCollections] = useState([]);
